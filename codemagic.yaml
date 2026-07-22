@@ -1,0 +1,38 @@
+workflows:
+  apk-debug:
+    name: LeadFlow debug APK
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      java: 17
+      groups:
+        # These variable groups are configured in the Codemagic UI:
+        #   Team settings → Environment variables → Group "leadflow-secrets"
+        # Add each --dart-define value there, marked as Secure.
+        - leadflow-secrets
+
+    scripts:
+      - name: Flutter version
+        script: flutter --version
+
+      - name: Get packages
+        script: flutter pub get
+
+      - name: Analyse
+        script: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings || true
+
+      - name: Build debug APK
+        script: |
+          flutter build apk --debug \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=OCR_SPACE_API_KEY="$OCR_SPACE_API_KEY" \
+            --dart-define=GEMINI_API_KEY="$GEMINI_API_KEY" \
+            --dart-define=GROQ_API_KEY="$GROQ_API_KEY"
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-debug.apk
+      - build/app/outputs/logs/*.log
+      # Fallback path some Flutter versions use.
+      - build/**/outputs/apk/**/*.apk
