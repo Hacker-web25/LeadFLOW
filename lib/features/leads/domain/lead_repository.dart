@@ -26,6 +26,15 @@ abstract interface class LeadRepository {
     required String? folderName,
   });
 
+  /// Sweep every untagged lead captured on [day] (local time) into the
+  /// folder named [folderName]. Used right after a folder is created so
+  /// scans made earlier the same day auto-file themselves. Returns the
+  /// number of leads moved.
+  Future<Result<int>> assignUntaggedFromDayToFolder({
+    required DateTime day,
+    required String folderName,
+  });
+
   Future<Result<List<Activity>>> recentActivity({int limit = 10});
   Future<Result<List<Activity>>> activityForLead(String leadId);
 

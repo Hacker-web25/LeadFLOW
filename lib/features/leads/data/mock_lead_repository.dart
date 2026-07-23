@@ -83,6 +83,45 @@ class MockLeadRepository implements LeadRepository {
   }
 
   @override
+  Future<Result<int>> assignUntaggedFromDayToFolder({
+    required DateTime day,
+    required String folderName,
+  }) async {
+    final name = folderName.trim();
+    if (name.isEmpty) return const Ok(0);
+    int moved = 0;
+    for (var i = 0; i < _leads.length; i++) {
+      final l = _leads[i];
+      final sameDay = l.capturedAt.year == day.year &&
+          l.capturedAt.month == day.month &&
+          l.capturedAt.day == day.day;
+      final untagged =
+          l.eventName == null || l.eventName!.trim().isEmpty;
+      if (sameDay && untagged) {
+        _leads[i] = Lead(
+          id: l.id,
+          contact: l.contact,
+          company: l.company,
+          eventName: name,
+          status: l.status,
+          temperature: l.temperature,
+          timeline: l.timeline,
+          customerType: l.customerType,
+          isDecisionMaker: l.isDecisionMaker,
+          exportRequirement: l.exportRequirement,
+          salesTeamRequired: l.salesTeamRequired,
+          additionalNotes: l.additionalNotes,
+          capturedAt: l.capturedAt,
+          cardImagePath: l.cardImagePath,
+        );
+        moved++;
+      }
+    }
+    if (moved > 0) _emit();
+    return Ok(moved);
+  }
+
+  @override
   Future<Result<void>> setLeadFolder({
     required String leadId,
     required String? folderName,

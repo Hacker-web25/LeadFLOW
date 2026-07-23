@@ -12,7 +12,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/platform_image.dart';
 import '../../exhibitions/data/exhibition_controller.dart';
-import '../../exhibitions/presentation/exhibition_picker_sheet.dart';
+import '../../exhibitions/presentation/folder_dialogs.dart';
 import '../domain/scan_flow_controller.dart';
 
 class ScanScreen extends ConsumerStatefulWidget {
@@ -102,8 +102,8 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
             // Folder / exhibition chip — the scan is tagged with whichever
             // exhibition is active. Tap to change / create.
             _ExhibitionChip(
-              label: exhibition?.name ?? 'No exhibition — tap to pick',
-              onTap: () => ExhibitionPickerSheet.show(context),
+              label: exhibition?.name ?? 'No folder — tap to pick',
+              onTap: () => FolderDialogs.showPickForScan(context, ref),
             ),
             const Spacer(),
             AnimatedBuilder(

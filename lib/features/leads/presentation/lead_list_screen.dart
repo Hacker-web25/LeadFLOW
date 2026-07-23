@@ -8,14 +8,13 @@ import '../../../core/constants/app_radii.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/lf_card.dart';
 import '../../../core/widgets/lf_pressable.dart';
 import '../../../core/widgets/lf_search_field.dart';
 import '../../../core/widgets/lf_skeleton.dart';
 import '../../../core/widgets/lf_state_views.dart';
 import '../../exhibitions/data/exhibition_controller.dart';
 import '../../exhibitions/domain/exhibition.dart';
-import '../../exhibitions/presentation/exhibition_picker_sheet.dart';
+import '../../exhibitions/presentation/folder_dialogs.dart';
 import '../domain/lead.dart';
 import '../domain/lead_filters.dart';
 import 'providers/leads_providers.dart';
@@ -53,6 +52,18 @@ class LeadListScreen extends ConsumerWidget {
                   viewMode == LeadViewMode.folders
                       ? LeadViewMode.list
                       : LeadViewMode.folders;
+            },
+          ),
+          IconButton(
+            tooltip: 'New folder',
+            icon: const Icon(Icons.create_new_folder_outlined),
+            onPressed: () async {
+              // Auto-switch to folders view so the user sees the new
+              // folder land — jarring otherwise if they were in the flat
+              // list.
+              ref.read(leadViewModeProvider.notifier).state =
+                  LeadViewMode.folders;
+              await FolderDialogs.showCreate(context, ref);
             },
           ),
           IconButton(
@@ -239,38 +250,28 @@ class _FoldersViewState extends ConsumerState<_FoldersView> {
         .toList()
       ..sort((a, b) => a.compareTo(b));
 
+    // The active-folder header / "Manage" button used to live at the top
+    // of this list. It's been replaced by the + icon in the Leads
+    // AppBar (unambiguous "make a folder") + long-press to rename +
+    // three-dot for delete on each tile.
+
+    if (exhibitions.isEmpty && adHoc.isEmpty && untagged.isEmpty) {
+      return LfEmptyState(
+        icon: Icons.create_new_folder_outlined,
+        title: 'No folders yet',
+        message:
+            'Tap + at the top to create your first folder. Any card you '
+            'scan today will slot in automatically.',
+        actionLabel: 'New folder',
+        onAction: () => FolderDialogs.showCreate(context, ref),
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.screenH, 0, AppSpacing.screenH, AppSpacing.x8),
       children: [
-        // Header: active folder + change / new buttons.
-        LfCard(
-          padding: const EdgeInsets.all(AppSpacing.x4),
-          child: Row(children: [
-            const Icon(Icons.folder_special_outlined, color: AppColors.iris),
-            const SizedBox(width: AppSpacing.x3),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Active folder',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(color: context.lf.inkTertiary)),
-                    Text(currentExh?.name ?? 'None — new scans stay untagged',
-                        style: Theme.of(context).textTheme.titleMedium),
-                  ]),
-            ),
-            TextButton(
-              onPressed: () => ExhibitionPickerSheet.show(context),
-              child: const Text('Manage'),
-            ),
-          ]),
-        ),
-        const SizedBox(height: AppSpacing.x3),
-
-        // Real folders — with created_at + rename/delete affordances.
+        // Real folders — long-press to rename, three-dot for delete.
         for (final e in exhibitions)
           _FolderTile(
             name: e.name,
@@ -279,8 +280,10 @@ class _FoldersViewState extends ConsumerState<_FoldersView> {
             highlighted: currentExh?.id == e.id ||
                 currentExh?.name.toLowerCase() == e.name.toLowerCase(),
             onTap: () => setState(() => _openFolder = e.name),
-            onRename: () => _promptRename(e),
-            onDelete: () => _promptDelete(e),
+            onLongPress: () => FolderDialogs.showRename(context, ref, e),
+            onRename: () => FolderDialogs.showRename(context, ref, e),
+            onDelete: () => FolderDialogs.showDelete(
+                context, ref, e, buckets[e.name]?.length ?? 0),
           ),
 
         // Legacy names — no metadata; still openable + assignable.
@@ -291,6 +294,7 @@ class _FoldersViewState extends ConsumerState<_FoldersView> {
             count: buckets[name]?.length ?? 0,
             highlighted: currentExh?.name.toLowerCase() == name.toLowerCase(),
             onTap: () => setState(() => _openFolder = name),
+            onLongPress: null,
             onRename: null,
             onDelete: null,
           ),
@@ -304,85 +308,9 @@ class _FoldersViewState extends ConsumerState<_FoldersView> {
             highlighted: false,
             leadingIcon: Icons.inbox_outlined,
             onTap: () => setState(() => _openUntagged = true),
+            onLongPress: null,
           ),
       ],
-    );
-  }
-
-  Future<void> _promptRename(Exhibition e) async {
-    final ctl = TextEditingController(text: e.name);
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Rename folder'),
-        content: TextField(
-          controller: ctl,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(c, ctl.text.trim()),
-              child: const Text('Save')),
-        ],
-      ),
-    );
-    if (newName == null || newName.isEmpty || !mounted) return;
-    final r = await ref
-        .read(exhibitionRepositoryProvider)
-        .rename(id: e.id, newName: newName);
-    ref.invalidate(exhibitionsProvider);
-    ref.invalidate(leadsStreamProvider);
-    if (!mounted) return;
-    r.when(
-      ok: (_) => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Renamed to $newName.'))),
-      err: (f) => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(f.message))),
-    );
-  }
-
-  Future<void> _promptDelete(Exhibition e) async {
-    final count = widget.leads
-        .where((l) => (l.eventName?.trim().toLowerCase() ?? '') ==
-            e.name.toLowerCase())
-        .length;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text('Delete "${e.name}"?'),
-        content: Text(count == 0
-            ? 'This folder is empty.'
-            : '$count lead${count == 1 ? "" : "s"} will be untagged, '
-                'not deleted.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(c, true),
-              child: const Text('Delete',
-                  style: TextStyle(color: AppColors.hot))),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    final r = await ref.read(exhibitionRepositoryProvider).delete(e.id);
-    ref.invalidate(exhibitionsProvider);
-    ref.invalidate(leadsStreamProvider);
-    final current = ref.read(currentExhibitionProvider).valueOrNull;
-    if (current?.id == e.id) {
-      await ref.read(currentExhibitionProvider.notifier).clear();
-    }
-    if (!mounted) return;
-    r.when(
-      ok: (_) => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Folder deleted.'))),
-      err: (f) => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(f.message))),
     );
   }
 }
@@ -456,6 +384,7 @@ class _FolderTile extends StatelessWidget {
     required this.count,
     required this.highlighted,
     required this.onTap,
+    this.onLongPress,
     this.onRename,
     this.onDelete,
     this.leadingIcon,
@@ -466,6 +395,7 @@ class _FolderTile extends StatelessWidget {
   final int count;
   final bool highlighted;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
   final IconData? leadingIcon;
@@ -486,6 +416,7 @@ class _FolderTile extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadii.lg),
           onTap: onTap,
+          onLongPress: onLongPress,
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.x4),
             decoration: BoxDecoration(

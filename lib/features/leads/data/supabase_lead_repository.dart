@@ -305,6 +305,41 @@ class SupabaseLeadRepository implements LeadRepository {
   }
 
   @override
+  Future<Result<int>> assignUntaggedFromDayToFolder({
+    required DateTime day,
+    required String folderName,
+  }) async {
+    try {
+      final name = folderName.trim();
+      if (name.isEmpty) return const Ok(0);
+      // Local calendar day → UTC ISO bounds so we compare like-with-like
+      // against `captured_at` which is stored as timestamptz.
+      final start = DateTime(day.year, day.month, day.day).toUtc();
+      final end = start.add(const Duration(days: 1));
+      // Fetch matching leads first so we can count and log; then bulk update.
+      final rows = await _client
+          .from('leads')
+          .select('id')
+          .eq('owner_id', _uid)
+          .isFilter('event_name', null)
+          .gte('captured_at', start.toIso8601String())
+          .lt('captured_at', end.toIso8601String());
+      if (rows.isEmpty) return const Ok(0);
+      await _client
+          .from('leads')
+          .update({'event_name': name})
+          .eq('owner_id', _uid)
+          .isFilter('event_name', null)
+          .gte('captured_at', start.toIso8601String())
+          .lt('captured_at', end.toIso8601String());
+      return Ok(rows.length);
+    } catch (e) {
+      return Err(AppFailure(
+          "Couldn't auto-assign today's untagged leads.", cause: e));
+    }
+  }
+
+  @override
   Future<Result<void>> setLeadFolder({
     required String leadId,
     required String? folderName,
