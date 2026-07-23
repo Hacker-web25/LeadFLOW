@@ -28,15 +28,17 @@ class SupabaseLeadRepository implements LeadRepository {
 
   @override
   Stream<List<Lead>> watchLeads() async* {
-    // Poll instead of Realtime. Rationale: Supabase Realtime requires the
-    // table to be enabled in the project's Replication settings; when it
-    // isn't, `.stream(...)` throws on subscription and the whole stream
-    // dies (that's the "Something went wrong" the user hit). Polling every
-    // few seconds is boring and unconditionally correct.
+    // Poll instead of Realtime — Realtime needs replication enabled per-
+    // project and used to blow up the whole stream when it wasn't.
     //
-    // Manual refresh: any writer (scan save, bulk edit, xlsx import) can
-    // still call `ref.invalidate(leadsStreamProvider)` to force an
-    // immediate re-fetch instead of waiting for the next tick.
+    // Two things matter for feel:
+    //   1. Interval — 30 s not 6 s, so scrolling and voice-note playback
+    //      don't get interrupted by pointless re-renders. Writers still
+    //      call `ref.invalidate(leadsStreamProvider)` after a save so
+    //      new data appears instantly.
+    //   2. Dedup — a poll that returns the same data as last time is
+    //      dropped, so the UI never rebuilds unless something actually
+    //      changed. This is what fixes the "list keeps flickering" bug.
     yield const [];
 
     // Wait briefly for auth to restore on cold start.
@@ -45,21 +47,71 @@ class SupabaseLeadRepository implements LeadRepository {
     }
     if (_client.auth.currentUser == null) return;
 
-    // Immediate fetch so the UI sees data on first frame.
+    String? lastSig;
+
     try {
-      yield await _fetchAll();
-    } catch (_) {
-      // Keep the empty emission — the poll loop below will retry.
-    }
+      final first = await _fetchAll();
+      lastSig = _signatureFor(first);
+      yield first;
+    } catch (_) {/* keep the empty emission */}
 
     while (true) {
-      await Future<void>.delayed(const Duration(seconds: 6));
+      await Future<void>.delayed(const Duration(seconds: 30));
       try {
-        yield await _fetchAll();
-      } catch (_) {
-        // Swallow transient errors; try again on the next tick.
-      }
+        final leads = await _fetchAll();
+        final sig = _signatureFor(leads);
+        if (sig != lastSig) {
+          lastSig = sig;
+          yield leads;
+        }
+        // else: identical data — do NOT re-emit, the UI must not churn.
+      } catch (_) {/* transient; next tick */}
     }
+  }
+
+  /// Cheap change-detection signature covering every rendered field so
+  /// external edits (bulk-edit, xlsx import, dashboard-driven updates)
+  /// still trigger a re-render, but identical polls do not.
+  static String _signatureFor(List<Lead> leads) {
+    final b = StringBuffer()..write(leads.length)..write(';');
+    for (final l in leads) {
+      b
+        ..write(l.id)
+        ..write('|')
+        ..write(l.contact.fullName)
+        ..write('|')
+        ..write(l.contact.designation ?? '')
+        ..write('|')
+        ..write(l.contact.email ?? '')
+        ..write('|')
+        ..write(l.contact.phone ?? '')
+        ..write('|')
+        ..write(l.company?.name ?? '')
+        ..write('|')
+        ..write(l.company?.website ?? '')
+        ..write('|')
+        ..write(l.eventName ?? '')
+        ..write('|')
+        ..write(l.temperature?.name ?? '')
+        ..write('|')
+        ..write(l.timeline?.name ?? '')
+        ..write('|')
+        ..write(l.customerType?.name ?? '')
+        ..write('|')
+        ..write(l.status.name)
+        ..write('|')
+        ..write(l.isDecisionMaker ?? '')
+        ..write('|')
+        ..write(l.exportRequirement ?? '')
+        ..write('|')
+        ..write(l.salesTeamRequired ?? '')
+        ..write('|')
+        ..write(l.additionalNotes ?? '')
+        ..write('|')
+        ..write(l.capturedAt.millisecondsSinceEpoch)
+        ..write('#');
+    }
+    return b.toString();
   }
 
   Future<List<Lead>> _fetchAll() async {

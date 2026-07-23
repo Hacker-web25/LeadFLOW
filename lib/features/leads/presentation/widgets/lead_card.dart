@@ -109,35 +109,93 @@ class _CardThumbnail extends ConsumerWidget {
 }
 
 /// Compact tile for grid view.
-class LeadGridTile extends StatelessWidget {
+class LeadGridTile extends ConsumerWidget {
   const LeadGridTile({super.key, required this.lead});
 
   final Lead lead;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final text = Theme.of(context).textTheme;
     return LfCard(
       onTap: () => context.push(Routes.leadDetailPath(lead.id)),
-      padding: const EdgeInsets.all(AppSpacing.x3),
+      padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              LfAvatar(lead.contact.fullName, size: 36),
-              const Spacer(),
-              TemperatureBadge(lead.temperature, dense: true),
-            ],
+          // Card image on top — the whole point of the grid is to see
+          // what the card looked like at a glance.
+          _GridThumbnail(leadId: lead.id, fullName: lead.contact.fullName),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.x3, 8, AppSpacing.x3, AppSpacing.x3),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(lead.contact.fullName,
+                          style: text.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(width: 4),
+                    TemperatureBadge(lead.temperature, dense: true),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(lead.companyName,
+                    style: text.bodyMedium
+                        ?.copyWith(color: context.lf.inkTertiary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
-          const Spacer(),
-          Text(lead.contact.fullName, style: text.titleMedium,
-              maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 2),
-          Text(lead.companyName,
-              style: text.bodyMedium?.copyWith(color: context.lf.inkTertiary),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
+      ),
+    );
+  }
+}
+
+/// The card-shaped thumbnail that lives at the top of every grid tile.
+/// Same cached signed URL as the list-row thumbnail, so we don't burn
+/// two round-trips per lead.
+class _GridThumbnail extends ConsumerWidget {
+  const _GridThumbnail({required this.leadId, required this.fullName});
+
+  final String leadId;
+  final String fullName;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final urlAsync = ref.watch(cardImageUrlProvider(leadId));
+    final c = context.lf;
+
+    Widget fallback() => Container(
+          color: c.surfaceSunken,
+          alignment: Alignment.center,
+          child: LfAvatar(fullName, size: 40),
+        );
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadii.lg)),
+      child: AspectRatio(
+        aspectRatio: 85.6 / 54, // real business-card ratio
+        child: urlAsync.when(
+          loading: fallback,
+          error: (_, __) => fallback(),
+          data: (url) {
+            if (url == null || url.isEmpty) return fallback();
+            return Container(
+              color: c.surfaceSunken,
+              child: PlatformImage(path: url),
+            );
+          },
+        ),
       ),
     );
   }

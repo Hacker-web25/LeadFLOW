@@ -53,15 +53,21 @@ final cardImageUrlProvider =
 final leadViewModeProvider = StateProvider<LeadViewMode>((ref) => LeadViewMode.list);
 
 /// One lead by id (detail screen).
+///
+/// Deliberately uses `ref.read` (not `watch`) on the leads stream. If we
+/// watched the stream, every poll tick would re-fire this provider even
+/// when the data hadn't changed — the detail screen would rebuild every
+/// 6–30 s, and the voice-note audio player would restart mid-playback.
+/// Writers that mutate a lead already call `ref.invalidate(leadProvider(id))`
+/// to force a refresh at the moment it matters.
 final leadProvider = FutureProvider.family<Lead, String>((ref, id) async {
-  // Keep detail in sync with the live list when available.
-  final fromStream = ref
-      .watch(leadsStreamProvider)
+  final cached = ref
+      .read(leadsStreamProvider)
       .valueOrNull
       ?.where((l) => l.id == id)
       .firstOrNull;
-  if (fromStream != null) return fromStream;
-  final result = await ref.watch(leadRepositoryProvider).getLead(id);
+  if (cached != null) return cached;
+  final result = await ref.read(leadRepositoryProvider).getLead(id);
   return result.when(ok: (l) => l, err: (f) => throw f);
 });
 

@@ -93,18 +93,17 @@ class LeadListScreen extends ConsumerWidget {
                   onTap: () => FilterSheet.show(context),
                 ),
                 const SizedBox(width: AppSpacing.x2),
+                // List ↔ Grid only. Folders view is reached from the
+                // dedicated folder icon in the AppBar; keeping it out of
+                // this toggle prevents the "why is my grid gone?" bug.
                 _SquareAction(
-                  icon: switch (viewMode) {
-                    LeadViewMode.list => Icons.grid_view_rounded,
-                    LeadViewMode.grid => Icons.folder_outlined,
-                    LeadViewMode.folders => Icons.view_agenda_outlined,
-                  },
+                  icon: viewMode == LeadViewMode.grid
+                      ? Icons.view_agenda_outlined
+                      : Icons.grid_view_rounded,
                   onTap: () {
-                    final next = switch (viewMode) {
-                      LeadViewMode.list => LeadViewMode.grid,
-                      LeadViewMode.grid => LeadViewMode.folders,
-                      LeadViewMode.folders => LeadViewMode.list,
-                    };
+                    final next = viewMode == LeadViewMode.grid
+                        ? LeadViewMode.list
+                        : LeadViewMode.grid;
                     ref.read(leadViewModeProvider.notifier).state = next;
                   },
                 ),
@@ -164,9 +163,11 @@ class LeadListScreen extends ConsumerWidget {
                       AppSpacing.screenH, 0, AppSpacing.screenH, AppSpacing.x8),
                   gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: isTablet ? 280 : 220,
-                    mainAxisSpacing: AppSpacing.x2,
-                    crossAxisSpacing: AppSpacing.x2,
-                    childAspectRatio: 1.35,
+                    mainAxisSpacing: AppSpacing.x3,
+                    crossAxisSpacing: AppSpacing.x3,
+                    // Card thumb on top (85.6/54 ≈ 1.585) + name/company
+                    // footer needs a taller tile — 0.82 lets both breathe.
+                    childAspectRatio: 0.82,
                   ),
                   itemCount: items.length,
                   itemBuilder: (_, i) => LeadGridTile(lead: items[i]),
