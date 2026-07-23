@@ -35,6 +35,9 @@ dependencies:
   file_saver: ^0.2.14
   # Persistent user settings (currently-active exhibition, etc.).
   shared_preferences: ^2.3.2
+  # App-private storage paths (used for voice-note recording — Android
+  # rejects bare filenames because the CWD is a read-only APK path).
+  path_provider: ^2.1.4
 
 dev_dependencies:
   flutter_test:

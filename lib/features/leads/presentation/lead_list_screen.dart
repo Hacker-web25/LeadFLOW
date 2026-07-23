@@ -37,6 +37,23 @@ class LeadListScreen extends ConsumerWidget {
         title: const Text('Leads'),
         actions: [
           IconButton(
+            tooltip: viewMode == LeadViewMode.folders
+                ? 'Showing folders'
+                : 'Sort by folder',
+            icon: Icon(
+              Icons.folder_rounded,
+              color: viewMode == LeadViewMode.folders
+                  ? AppColors.iris
+                  : null,
+            ),
+            onPressed: () {
+              ref.read(leadViewModeProvider.notifier).state =
+                  viewMode == LeadViewMode.folders
+                      ? LeadViewMode.list
+                      : LeadViewMode.folders;
+            },
+          ),
+          IconButton(
             tooltip: 'Bulk edit',
             icon: const Icon(Icons.table_rows_rounded),
             onPressed: () => context.push(Routes.leadsBulkEdit),

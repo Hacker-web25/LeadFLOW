@@ -5,11 +5,15 @@ workflows:
     environment:
       flutter: stable
       java: 17
-      groups:
-        # These variable groups are configured in the Codemagic UI:
-        #   Team settings → Environment variables → Group "leadflow-secrets"
-        # Add each --dart-define value there, marked as Secure.
-        - leadflow-secrets
+      # Secrets are embedded directly here for build reliability. Repo is
+      # private; anon key + AI keys can be rotated any time from the
+      # respective consoles.
+      vars:
+        SUPABASE_URL: "https://geqkvpbryprrnhjubeqi.supabase.co"
+        SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdlcWt2cGJyeXBycm5oanViZXFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyODM0NjcsImV4cCI6MjA5OTg1OTQ2N30.Ijaq1G8NvluNYNP365_UNJEaFx42yRVDeP_c3ByJWjw"
+        OCR_SPACE_API_KEY: "K87626153588957"
+        GEMINI_API_KEY: "AQ.Ab8RN6LSBZtI-LWy7dsq9xc-rgntEQjBApdb8euL0C742y9CKg"
+        GROQ_API_KEY: "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"
 
     scripts:
       - name: Flutter version

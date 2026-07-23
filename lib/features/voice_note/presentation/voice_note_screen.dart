@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../../../core/constants/app_radii.dart';
@@ -99,8 +102,19 @@ class _VoiceNoteScreenState extends ConsumerState<VoiceNoteScreen>
         bitRate: 64000,
       );
 
-      // On web, `path` is only a label; the recorder returns a blob URL.
-      final target = 'leadflow-voice-note';
+      // On web the `path` parameter is only a label and the recorder returns
+      // a blob URL. On Android/iOS/desktop it must be a writable absolute
+      // path — a bare filename resolves to the process CWD, which on Android
+      // is the read-only APK install dir and blows up with EROFS.
+      String target;
+      if (kIsWeb) {
+        target = 'leadflow-voice-note';
+      } else {
+        final dir = await getApplicationDocumentsDirectory();
+        final ext = (!kIsWeb && Platform.isIOS) ? 'm4a' : 'm4a';
+        target = '${dir.path}/leadflow-voice-note-'
+            '${DateTime.now().millisecondsSinceEpoch}.$ext';
+      }
       await _recorder.start(config, path: target);
 
       // Mic warm-up: the first ~300 ms of a MediaRecorder stream is often

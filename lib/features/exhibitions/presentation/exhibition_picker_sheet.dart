@@ -35,8 +35,20 @@ class _ExhibitionPickerSheetState
   }
 
   Future<void> _apply(String name) async {
-    await ref.read(currentExhibitionProvider.notifier).set(name);
-    if (mounted) Navigator.of(context).pop();
+    final trimmed = name.trim();
+    await ref.read(currentExhibitionProvider.notifier).set(trimmed);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger != null) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(
+        content: Text(trimmed.isEmpty
+            ? 'Folder cleared. New scans stay untagged.'
+            : 'Folder set: $trimmed. New scans will land here.'),
+        duration: const Duration(seconds: 3),
+      ));
+    }
   }
 
   @override
