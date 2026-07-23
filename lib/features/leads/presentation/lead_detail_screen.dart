@@ -20,6 +20,8 @@ import '../../../core/widgets/lf_state_views.dart';
 import '../../../core/widgets/platform_image.dart';
 import '../../../core/widgets/temperature_badge.dart';
 import '../../dashboard/presentation/widgets/activity_section.dart' show ActivitySection;
+import '../../exhibitions/data/exhibition_controller.dart';
+import '../../exhibitions/domain/exhibition.dart';
 import '../../voice_note/presentation/voice_notes_section.dart';
 import '../domain/lead.dart';
 import 'providers/leads_providers.dart';
@@ -46,6 +48,8 @@ class LeadDetailScreen extends ConsumerWidget {
               onSelected: (v) async {
                 if (v == 'edit') {
                   await _EditSheet.show(context, l);
+                } else if (v == 'move') {
+                  await _MoveToFolderSheet.show(context, l);
                 } else if (v == 'delete') {
                   final ok = await showDialog<bool>(
                     context: context,
@@ -70,6 +74,8 @@ class LeadDetailScreen extends ConsumerWidget {
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'edit', child: Text('Edit')),
+                PopupMenuItem(
+                    value: 'move', child: Text('Move to folder…')),
                 PopupMenuItem(value: 'delete',
                     child: Text('Delete', style: TextStyle(color: AppColors.hot))),
               ],
@@ -410,4 +416,200 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
           child,
         ]),
       );
+}
+
+/// Move an existing lead into a different folder — or into no folder.
+/// Handles the "I forgot to pick a folder before scanning" case.
+class _MoveToFolderSheet extends ConsumerStatefulWidget {
+  const _MoveToFolderSheet({required this.lead});
+  final Lead lead;
+
+  static Future<void> show(BuildContext context, Lead lead) =>
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) => _MoveToFolderSheet(lead: lead),
+      );
+
+  @override
+  ConsumerState<_MoveToFolderSheet> createState() =>
+      _MoveToFolderSheetState();
+}
+
+class _MoveToFolderSheetState extends ConsumerState<_MoveToFolderSheet> {
+  final _newFolderCtl = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _newFolderCtl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _move(String? name) async {
+    setState(() => _busy = true);
+    // If the user typed a brand-new name, make sure a folder row exists.
+    if (name != null && name.isNotEmpty) {
+      final createResult =
+          await ref.read(exhibitionRepositoryProvider).create(name);
+      createResult.when(
+        ok: (_) {},
+        err: (_) {/* proceed anyway — event_name is text */},
+      );
+    }
+    final r = await ref.read(leadRepositoryProvider).setLeadFolder(
+        leadId: widget.lead.id, folderName: name);
+    ref.invalidate(leadProvider(widget.lead.id));
+    ref.invalidate(leadsStreamProvider);
+    ref.invalidate(exhibitionsProvider);
+    if (!mounted) return;
+    r.when(
+      ok: (_) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(name == null || name.isEmpty
+                ? 'Lead removed from folder.'
+                : 'Lead moved to $name.')));
+      },
+      err: (f) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(f.message)));
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final exhibitionsAsync = ref.watch(exhibitionsProvider);
+    final knownNames = ref.watch(knownExhibitionsProvider);
+    final currentFolder = widget.lead.eventName?.trim();
+    final c = context.lf;
+
+    final exhibitions = exhibitionsAsync.valueOrNull ?? const <Exhibition>[];
+    final displayedNames = <String>{
+      for (final e in exhibitions) e.name.toLowerCase(),
+    };
+    final adHoc = knownNames
+        .where((n) => !displayedNames.contains(n.toLowerCase()))
+        .toList();
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: AppSpacing.screenH,
+          right: AppSpacing.screenH,
+          top: AppSpacing.x2,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.x4,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Move to folder', style: text.titleLarge),
+              const SizedBox(height: AppSpacing.x2),
+              Text('Currently in: ${currentFolder ?? "no folder"}',
+                  style: text.bodyMedium?.copyWith(color: c.inkTertiary)),
+              const SizedBox(height: AppSpacing.x5),
+
+              // New folder
+              const LfSectionHeader('New folder'),
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: _newFolderCtl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. IPPE Atlanta 2026',
+                      prefixIcon: Icon(Icons.create_new_folder_outlined),
+                    ),
+                    onSubmitted: (_) => _move(_newFolderCtl.text.trim()),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.x2),
+                FilledButton(
+                  onPressed: _busy
+                      ? null
+                      : () => _move(_newFolderCtl.text.trim()),
+                  child: const Text('Create & Move'),
+                ),
+              ]),
+              const SizedBox(height: AppSpacing.x5),
+
+              // Existing folders
+              if (exhibitions.isNotEmpty || adHoc.isNotEmpty) ...[
+                const LfSectionHeader('Existing folders'),
+                for (final e in exhibitions)
+                  _MoveTile(
+                    name: e.name,
+                    isCurrent: currentFolder?.toLowerCase() ==
+                        e.name.toLowerCase(),
+                    onTap: _busy ? null : () => _move(e.name),
+                  ),
+                for (final n in adHoc)
+                  _MoveTile(
+                    name: n,
+                    isCurrent: currentFolder?.toLowerCase() == n.toLowerCase(),
+                    onTap: _busy ? null : () => _move(n),
+                  ),
+                const SizedBox(height: AppSpacing.x3),
+              ],
+
+              if (currentFolder != null)
+                TextButton.icon(
+                  onPressed: _busy ? null : () => _move(null),
+                  icon: const Icon(Icons.folder_off_outlined),
+                  label: const Text('Remove from folder'),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MoveTile extends StatelessWidget {
+  const _MoveTile({
+    required this.name,
+    required this.isCurrent,
+    required this.onTap,
+  });
+  final String name;
+  final bool isCurrent;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final c = context.lf;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.x2),
+      child: Material(
+        color: isCurrent ? AppColors.iris.withValues(alpha: 0.10) : c.surface,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.x3, vertical: AppSpacing.x3),
+            child: Row(children: [
+              Icon(Icons.folder_rounded,
+                  color: isCurrent ? AppColors.iris : c.inkSecondary),
+              const SizedBox(width: AppSpacing.x3),
+              Expanded(child: Text(name, style: text.titleMedium)),
+              if (isCurrent)
+                const Icon(Icons.check_rounded, color: AppColors.iris),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
 }

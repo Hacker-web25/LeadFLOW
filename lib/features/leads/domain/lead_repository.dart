@@ -18,6 +18,14 @@ abstract interface class LeadRepository {
   Future<Result<String?>> cardImageUrl(Lead lead);
   Future<Result<void>> deleteLead(String id);
 
+  /// Move a lead to a different folder (or null to untag it). Used when
+  /// the user forgot to pick a folder while scanning and wants to
+  /// reassign an existing lead from Lead Detail.
+  Future<Result<void>> setLeadFolder({
+    required String leadId,
+    required String? folderName,
+  });
+
   Future<Result<List<Activity>>> recentActivity({int limit = 10});
   Future<Result<List<Activity>>> activityForLead(String leadId);
 

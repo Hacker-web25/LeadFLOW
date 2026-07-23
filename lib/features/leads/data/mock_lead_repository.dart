@@ -83,6 +83,36 @@ class MockLeadRepository implements LeadRepository {
   }
 
   @override
+  Future<Result<void>> setLeadFolder({
+    required String leadId,
+    required String? folderName,
+  }) async {
+    final i = _leads.indexWhere((l) => l.id == leadId);
+    if (i == -1) return const Err(AppFailure('Lead not found.'));
+    final trimmed = folderName?.trim();
+    final value = (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+    final old = _leads[i];
+    _leads[i] = Lead(
+      id: old.id,
+      contact: old.contact,
+      company: old.company,
+      eventName: value,
+      status: old.status,
+      temperature: old.temperature,
+      timeline: old.timeline,
+      customerType: old.customerType,
+      isDecisionMaker: old.isDecisionMaker,
+      exportRequirement: old.exportRequirement,
+      salesTeamRequired: old.salesTeamRequired,
+      additionalNotes: old.additionalNotes,
+      capturedAt: old.capturedAt,
+      cardImagePath: old.cardImagePath,
+    );
+    _emit();
+    return const Ok(null);
+  }
+
+  @override
   Future<Result<List<Activity>>> recentActivity({int limit = 10}) async =>
       Ok(_activities.take(limit).toList());
 

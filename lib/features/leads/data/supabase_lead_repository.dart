@@ -183,12 +183,29 @@ class SupabaseLeadRepository implements LeadRepository {
             fileOptions: const FileOptions(
                 upsert: true, contentType: 'image/jpeg'),
           );
-      await _client.from('business_card_images').upsert({
-        'owner_id': _uid,
-        'lead_id': lead.id,
-        'storage_path': storagePath,
-        'side': 'front',
-      }, onConflict: 'lead_id,side', ignoreDuplicates: false);
+      // Manual check-then-write: the unique constraint on
+      // (lead_id, side) only exists after migration 0004 has been run,
+      // so we can't rely on `upsert(onConflict:)`. Running unconditionally
+      // works even on an older schema.
+      final existing = await _client
+          .from('business_card_images')
+          .select('id')
+          .eq('lead_id', lead.id)
+          .eq('side', 'front')
+          .maybeSingle();
+      if (existing == null) {
+        await _client.from('business_card_images').insert({
+          'owner_id': _uid,
+          'lead_id': lead.id,
+          'storage_path': storagePath,
+          'side': 'front',
+        });
+      } else {
+        await _client
+            .from('business_card_images')
+            .update({'storage_path': storagePath})
+            .eq('id', existing['id']);
+      }
       if (kDebugMode) debugPrint('[card image] uploaded $storagePath');
     } catch (e, st) {
       // Keep the lead save successful even when the image fails, but log
@@ -247,17 +264,32 @@ class SupabaseLeadRepository implements LeadRepository {
   @override
   Future<Result<String?>> cardImageUrl(Lead lead) async {
     try {
-      final row = await _client
+      // Prefer the front side; fall back to any other side if only a back
+      // was uploaded. Using .limit(1) guards against duplicate rows that
+      // may have accumulated before the unique constraint landed.
+      final rows = await _client
           .from('business_card_images')
-          .select('storage_path')
+          .select('storage_path, side')
           .eq('lead_id', lead.id)
-          .maybeSingle();
-      if (row == null) return const Ok(null);
+          .order('side')
+          .limit(2);
+      if (rows.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('[card image] no row for lead ${lead.id}');
+        }
+        return const Ok(null);
+      }
+      final row = rows.firstWhere(
+          (r) => (r['side'] as String?) == 'front',
+          orElse: () => rows.first);
       final url = await _client.storage
           .from(AppConfig.cardBucket)
           .createSignedUrl(row['storage_path'] as String, 3600);
       return Ok(url);
     } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[card image] url lookup failed for ${lead.id}: $e');
+      }
       return const Ok(null);
     }
   }
@@ -269,6 +301,32 @@ class SupabaseLeadRepository implements LeadRepository {
       return const Ok(null);
     } catch (e) {
       return Err(AppFailure('Could not delete the lead.', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<void>> setLeadFolder({
+    required String leadId,
+    required String? folderName,
+  }) async {
+    try {
+      final trimmed = folderName?.trim();
+      final value = (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+      await _client
+          .from('leads')
+          .update({'event_name': value})
+          .eq('id', leadId);
+      await _client.from('activities').insert({
+        'owner_id': _uid,
+        'lead_id': leadId,
+        'type': 'status_change',
+        'summary': value == null
+            ? 'Removed from folder'
+            : 'Moved to folder "$value"',
+      });
+      return const Ok(null);
+    } catch (e) {
+      return Err(AppFailure("Couldn't move this lead.", cause: e));
     }
   }
 
