@@ -19,6 +19,7 @@ import '../../../core/widgets/lf_skeleton.dart';
 import '../../../core/widgets/lf_state_views.dart';
 import '../../../core/widgets/platform_image.dart';
 import '../../../core/widgets/temperature_badge.dart';
+import '../../actions/presentation/actions_section.dart';
 import '../../dashboard/presentation/widgets/activity_section.dart' show ActivitySection;
 import '../../exhibitions/presentation/folder_dialogs.dart';
 import '../../voice_note/presentation/voice_notes_section.dart';
@@ -204,9 +205,13 @@ class _Body extends ConsumerWidget {
             _InfoRow('Email', lead.contact.email),
             _InfoRow('Website', lead.company?.website),
             _InfoRow('Company', lead.company?.name),
-            _InfoRow('Location',
+            _InfoRow(
+                'Location',
                 [lead.company?.city, lead.company?.country]
-                    .whereType<String>().join(', '),
+                    .where((s) => s != null && s.trim().isNotEmpty)
+                    .cast<String>()
+                    .map((s) => s.trim())
+                    .join(', '),
                 last: true),
           ]),
         ),
@@ -216,6 +221,9 @@ class _Body extends ConsumerWidget {
           const LfSectionHeader('Notes'),
           LfCard(child: Text(lead.additionalNotes!, style: text.bodyLarge)),
         ],
+
+        const SizedBox(height: AppSpacing.x6),
+        ActionsSection(leadId: lead.id),
 
         const SizedBox(height: AppSpacing.x6),
         VoiceNotesSection(leadId: lead.id),

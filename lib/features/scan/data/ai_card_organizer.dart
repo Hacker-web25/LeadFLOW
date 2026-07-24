@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/config/app_config.dart';
 import '../domain/card_extraction_service.dart';
+import 'field_cleaners.dart';
 import 'parsers/business_card_parser.dart';
 
 /// Text-only AI post-processor for OCR output.
@@ -169,32 +170,27 @@ Required JSON shape (exact keys, all strings):
   }
 
   static ExtractedCard _fromJson(Map<String, dynamic> j) {
-    String? s(String k) {
-      final v = j[k];
-      if (v == null) return null;
-      final str = v.toString().trim();
-      return str.isEmpty ? null : str;
-    }
+    String? raw(String k) => j[k]?.toString();
 
-    final name = s('full_name');
-    final company = s('company_name');
-    final email = s('email');
-    final phone = s('phone');
+    final name = FieldCleaners.text(raw('full_name'));
+    final company = FieldCleaners.text(raw('company_name'));
+    final email = FieldCleaners.text(raw('email'))?.toLowerCase();
+    final phone = FieldCleaners.text(raw('phone'));
     final filled = [name, company, email, phone]
         .where((v) => v != null && v.isNotEmpty)
         .length;
 
     return ExtractedCard(
       fullName: name,
-      designation: s('designation'),
+      designation: FieldCleaners.titleCase(raw('designation')),
       companyName: company,
       email: email,
       phone: phone,
-      altPhone: s('alt_phone'),
-      website: s('website'),
-      address: s('address'),
-      city: s('city'),
-      country: s('country'),
+      altPhone: FieldCleaners.text(raw('alt_phone')),
+      website: FieldCleaners.text(raw('website'))?.toLowerCase(),
+      address: FieldCleaners.address(raw('address')),
+      city: FieldCleaners.titleCase(raw('city')),
+      country: FieldCleaners.titleCase(raw('country')),
       confidence: filled / 4.0,
     );
   }

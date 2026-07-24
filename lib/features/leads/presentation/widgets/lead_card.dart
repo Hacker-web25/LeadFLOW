@@ -11,6 +11,7 @@ import '../../../../core/widgets/lf_avatar.dart';
 import '../../../../core/widgets/lf_card.dart';
 import '../../../../core/widgets/platform_image.dart';
 import '../../../../core/widgets/temperature_badge.dart';
+import '../../../actions/presentation/actions_section.dart';
 import '../../domain/lead.dart';
 import '../providers/leads_providers.dart';
 
@@ -46,6 +47,7 @@ class LeadCard extends ConsumerWidget {
                 const SizedBox(height: 2),
                 Text(subtitle, style: text.bodyMedium,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
+                LeadActionPill(leadId: lead.id),
               ],
             ),
           ),

@@ -3,10 +3,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/app_config.dart';
+import '../../actions/domain/pending_action.dart';
 import '../../leads/domain/lead.dart';
 
 /// Structured update derived from a voice note transcript.
-/// Every field is optional; only the ones Gemini could confidently extract
+/// Every field is optional; only the ones the AI could confidently extract
 /// are populated. Callers merge these into the existing lead.
 class VoiceNoteUpdate {
   const VoiceNoteUpdate({
@@ -17,6 +18,7 @@ class VoiceNoteUpdate {
     this.exportRequirement,
     this.salesTeamRequired,
     this.summary,
+    this.actions = const [],
   });
 
   final LeadTemperature? temperature;
@@ -30,6 +32,11 @@ class VoiceNoteUpdate {
   /// doesn't fit a structured field. Appended to the lead's notes.
   final String? summary;
 
+  /// Action items the speaker asked to happen next — "call him Tuesday",
+  /// "send WhatsApp with the catalog", etc. Each becomes a row in
+  /// `pending_actions` that later drives reminders + automation.
+  final List<PendingActionDraft> actions;
+
   bool get isEmpty =>
       temperature == null &&
       timeline == null &&
@@ -37,7 +44,8 @@ class VoiceNoteUpdate {
       isDecisionMaker == null &&
       exportRequirement == null &&
       salesTeamRequired == null &&
-      (summary == null || summary!.trim().isEmpty);
+      (summary == null || summary!.trim().isEmpty) &&
+      actions.isEmpty;
 }
 
 /// Turn a raw voice-note transcript into structured qualification fields
@@ -61,6 +69,11 @@ Your job:
    remembering (product interest, order size, budget, decision path,
    personal rapport notes, next-step commitments, etc.). Keep the summary
    in ENGLISH (translate any Hindi/Hinglish parts). No opinions, no fluff.
+3) Extract EVERY "next action" the speaker committed to or asked for.
+   Anything of the form "call him Tuesday", "send email with catalog",
+   "WhatsApp the price list", "book a demo next week", "SMS the address"
+   becomes one action item with a KIND, a short DESCRIPTION, and — if
+   the speaker mentioned a time — a due date/time.
 
 Return ONLY minified JSON with these exact keys:
 {
@@ -70,15 +83,26 @@ Return ONLY minified JSON with these exact keys:
   "is_decision_maker": true | false | null,
   "export_requirement": true | false | null,
   "sales_team_required": true | false | null,
-  "summary": "clean english paragraph, or empty string if speaker said nothing to remember"
+  "summary": "clean english paragraph, or empty string if speaker said nothing to remember",
+  "actions": [
+    {
+      "kind": "call" | "email" | "whatsapp" | "sms" | "meeting" | "other",
+      "description": "short imperative phrase — 'Send catalog PDF', 'Call and confirm sample dispatch'",
+      "due_hint": "free-text time hint from the transcript, e.g. 'tomorrow', 'next Tuesday 3pm', or empty string if none"
+    }
+  ]
 }
 
 Rules:
 - Use "" (empty string) or null when the speaker did NOT mention that field.
-- Do NOT invent or guess. If unsure, leave it empty.
+- Do NOT invent or guess. If the speaker said nothing about calling, the
+  actions array must NOT contain a call item.
 - "Hot" = ready to buy soon. "Warm" = interested. "Cold" = long-shot.
 - The summary is the ONLY place free-form notes go — never repeat the
-  structured fields inside it.
+  structured fields or actions inside it.
+- Kind mapping: "phone/call/ring" → call, "mail/email" → email,
+  "WhatsApp/WA/whatsup" → whatsapp, "text/SMS" → sms, "meet/demo/visit"
+  → meeting. Anything else → other.
 ''';
 
   /// Returns null when no AI key is configured or all attempts fail.
@@ -101,7 +125,37 @@ Rules:
       exportRequirement: _bool(json['export_requirement']),
       salesTeamRequired: _bool(json['sales_team_required']),
       summary: _nullable(json['summary']),
+      actions: _actions(json['actions']),
     );
+  }
+
+  static List<PendingActionDraft> _actions(Object? raw) {
+    if (raw is! List) return const [];
+    final out = <PendingActionDraft>[];
+    for (final e in raw) {
+      if (e is! Map) continue;
+      final desc = _nullable(e['description']);
+      if (desc == null) continue;
+      final kind = _actionKind(e['kind']);
+      final dueHint = _nullable(e['due_hint']);
+      out.add(PendingActionDraft(
+        kind: kind,
+        description: desc,
+        dueHint: dueHint,
+      ));
+    }
+    return out;
+  }
+
+  static PendingActionKind _actionKind(Object? v) {
+    switch (v?.toString().toLowerCase().trim()) {
+      case 'call': return PendingActionKind.call;
+      case 'email': return PendingActionKind.email;
+      case 'whatsapp': return PendingActionKind.whatsapp;
+      case 'sms': return PendingActionKind.sms;
+      case 'meeting': return PendingActionKind.meeting;
+    }
+    return PendingActionKind.other;
   }
 
   static Future<Map<String, dynamic>?> _callGroq(String transcript) async {

@@ -15,6 +15,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/lf_colors.dart';
 import '../../../core/widgets/lf_segmented.dart';
 import '../../../core/widgets/lf_state_views.dart';
+import '../../actions/presentation/actions_providers.dart';
 import '../../leads/domain/lead.dart';
 import '../../leads/presentation/providers/leads_providers.dart';
 import '../data/ai_voice_note_organizer.dart';
@@ -242,6 +243,23 @@ class _VoiceNoteScreenState extends ConsumerState<VoiceNoteScreen>
         );
       }
 
+      // 5. Save any action items the AI extracted (call, email, WhatsApp,
+      // meeting…). These land in pending_actions and drive the checklist +
+      // future automation worker.
+      int actionsCreated = 0;
+      if (update != null && update.actions.isNotEmpty) {
+        final savedNoteId = saved.valueOrNull?.id;
+        final actionResult =
+            await ref.read(actionRepositoryProvider).createBatch(
+                  leadId: widget.leadId,
+                  voiceNoteId: savedNoteId,
+                  drafts: update.actions,
+                );
+        actionsCreated = actionResult.valueOrNull?.length ?? 0;
+        ref.invalidate(pendingActionsProvider(widget.leadId));
+        ref.invalidate(pendingCountsProvider);
+      }
+
       if (!mounted) return;
       saved.when(
         ok: (_) {
@@ -249,9 +267,12 @@ class _VoiceNoteScreenState extends ConsumerState<VoiceNoteScreen>
           ref.invalidate(leadsStreamProvider);
           ref.invalidate(voiceNotesProvider(widget.leadId));
           context.pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Voice note saved.')),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(actionsCreated == 0
+                ? 'Voice note saved.'
+                : 'Voice note saved. $actionsCreated action'
+                    '${actionsCreated == 1 ? "" : "s"} queued.'),
+          ));
         },
         err: (f) => setState(() {
           _phase = _Phase.transcribed;
