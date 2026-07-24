@@ -54,8 +54,36 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   }
 
   Future<void> _addBack() async {
-    // Match the primary capture affordance: prefer camera on mobile.
-    await _pick(ImageSource.camera, back: true);
+    // Let the user pick their source — either fresh camera capture or an
+    // existing photo from the gallery. Bare dialog (not a bottom sheet)
+    // because bottom sheets have been flaky on some Android devices in
+    // this codebase.
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (c) => SimpleDialog(
+        title: const Text('Add back side'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(c, ImageSource.camera),
+            child: const Row(children: [
+              Icon(Icons.photo_camera_outlined),
+              SizedBox(width: 12),
+              Text('Take a photo'),
+            ]),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(c, ImageSource.gallery),
+            child: const Row(children: [
+              Icon(Icons.photo_library_outlined),
+              SizedBox(width: 12),
+              Text('Choose from gallery'),
+            ]),
+          ),
+        ],
+      ),
+    );
+    if (source == null || !mounted) return;
+    await _pick(source, back: true);
   }
 
   Future<void> _use() async {
