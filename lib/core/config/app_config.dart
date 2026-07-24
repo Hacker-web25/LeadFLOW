@@ -38,6 +38,15 @@ abstract final class AppConfig {
   static const groqApiKey = String.fromEnvironment('GROQ_API_KEY');
   static bool get hasGroq => groqApiKey.isNotEmpty;
 
+  /// Google Cloud Vision API key (AIza…) — the highest-accuracy OCR
+  /// tier. First 1000 requests/month are free. Enable the "Cloud Vision
+  /// API" in Google Cloud Console, create an API key, and restrict it
+  /// to the Vision API only.
+  /// Pass with --dart-define=GCV_API_KEY=AIza...
+  static const googleCloudVisionKey =
+      String.fromEnvironment('GCV_API_KEY');
+  static bool get hasGoogleCloudVision => googleCloudVisionKey.isNotEmpty;
+
   static bool get demoMode => supabaseUrl.isEmpty || supabaseAnonKey.isEmpty;
 
   static const appName = 'LeadFlow AI';

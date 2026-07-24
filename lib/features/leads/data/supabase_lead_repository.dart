@@ -162,8 +162,18 @@ class SupabaseLeadRepository implements LeadRepository {
       final leadRow = LeadDto.toRow(lead, ownerId: _uid);
       if (companyId != null) leadRow['company_id'] = companyId;
       await _client.from('leads').upsert(leadRow, onConflict: 'id');
-      await _uploadCardImage(lead);
-      await _client.from('activities').insert({
+
+      // Card image upload — moved off the hot path. The user should see
+      // the lead detail screen the moment the DB row is written; the
+      // thumbnail can arrive a couple of seconds later without blocking
+      // navigation. Any failure here is logged in debug mode only —
+      // the lead itself is safe.
+      // ignore: unawaited_futures
+      _uploadCardImage(lead);
+
+      // Activity row is also non-critical for the UI — fire and forget.
+      // ignore: unawaited_futures
+      _client.from('activities').insert({
         'owner_id': _uid,
         'lead_id': lead.id,
         'type': 'scan',

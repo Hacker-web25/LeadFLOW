@@ -38,6 +38,9 @@ dependencies:
   # App-private storage paths (used for voice-note recording — Android
   # rejects bare filenames because the CWD is a read-only APK path).
   path_provider: ^2.1.4
+  # Share sheet for Excel export on Android (file_saver alone can't write
+  # to Downloads on scoped storage without SAF).
+  share_plus: ^10.0.2
 
 dev_dependencies:
   flutter_test:

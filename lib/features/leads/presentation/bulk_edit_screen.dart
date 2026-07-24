@@ -1,7 +1,11 @@
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
+import 'dart:io' show File;
+
 import 'package:file_saver/file_saver.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -438,14 +442,33 @@ class _BulkEditScreenState extends ConsumerState<BulkEditScreen> {
       final now = DateTime.now();
       final stamp = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
           '${now.day.toString().padLeft(2, '0')}';
-      // file_saver: web downloads via anchor, mobile writes to Downloads.
-      await FileSaver.instance.saveFile(
-        name: 'leadflow-$stamp',
-        bytes: bytes,
-        ext: 'xlsx',
-        mimeType: MimeType.microsoftExcel,
-      );
-      if (mounted) _snack('Exported ${leads.length} leads to Excel.');
+      final filename = 'leadflow-$stamp.xlsx';
+
+      if (kIsWeb) {
+        // Browser: file_saver triggers a normal download.
+        await FileSaver.instance.saveFile(
+          name: 'leadflow-$stamp',
+          bytes: bytes,
+          ext: 'xlsx',
+          mimeType: MimeType.microsoftExcel,
+        );
+      } else {
+        // Android/iOS: silent writes to Downloads fail under scoped
+        // storage. Write to the app's cache dir and open the share
+        // sheet so the user picks the destination themselves (Drive,
+        // Gmail, Files, WhatsApp…). Works on every Android version
+        // without needing storage permissions.
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$filename');
+        await file.writeAsBytes(bytes, flush: true);
+        await Share.shareXFiles(
+          [XFile(file.path, mimeType:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+          subject: filename,
+          text: 'LeadFlow export — ${leads.length} leads',
+        );
+      }
+      if (mounted) _snack('Exported ${leads.length} leads.');
     } catch (e) {
       if (mounted) _snack('Export failed: $e');
     } finally {

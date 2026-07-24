@@ -11,6 +11,7 @@ import '../../features/auth/data/demo_auth_repository.dart';
 import '../../features/auth/data/supabase_auth_repository.dart';
 import '../../features/auth/domain/auth_repository.dart';
 import '../../features/scan/data/gemini_card_extraction_service.dart';
+import '../../features/scan/data/google_vision_extraction_service.dart';
 import '../../features/scan/data/groq_vision_extraction_service.dart';
 import '../../features/scan/data/ml_kit_extraction_service.dart';
 import '../../features/scan/data/nvidia_card_extraction_service.dart';
@@ -45,26 +46,26 @@ final cardExtractionServiceProvider = Provider<CardExtractionService>((ref) {
   // Extraction chain, each tier falling back to the next when it fails,
   // times out, or returns nothing useful:
   //
-  //   1. Groq vision (Llama-4 Scout) — free tier via GROQ_API_KEY. Sees
-  //      the image directly; industry-leading throughput. Best-quality
-  //      output for real-world exhibition cards. This is the ONE that
-  //      fixes the "address is cut off / double-comma" bugs.
-  //   2. Gemini vision — second AI-vision safety net.
-  //   3. NVIDIA vision — third AI safety net if you set NVIDIA_API_KEY.
-  //   4. ML Kit — on-device fallback for mobile (no network needed).
-  //   5. OCR.space — hosted OCR (works on web).
-  //   6. tesseract.js — last-resort on-device on web.
+  //   1. Google Cloud Vision + Groq organizer — highest-accuracy OCR
+  //      on the market, then LLM structures the fields. Free tier
+  //      covers 1000 cards/month. THIS is the tier that turns real
+  //      exhibition cards into clean structured data.
+  //   2. Groq vision (Llama-4 Scout) — direct image-to-JSON. Fast.
+  //   3. Gemini vision — vision-LLM safety net.
+  //   4. NVIDIA vision — extra safety net if NVIDIA_API_KEY is set.
+  //   5. ML Kit — on-device fallback for mobile (no network).
+  //   6. OCR.space — hosted OCR (works on web).
+  //   7. tesseract.js — last-resort on-device on web.
   //
-  // Rationale: the two heavyweight vision LLMs run FIRST because their
-  // output is already structured and cleaner than any parser-over-OCR
-  // pipeline can produce. The classic OCR tiers stay as a safety net
-  // for offline / quota-exhausted situations.
-  return const GroqVisionExtractionService(
-    GeminiCardExtractionService(
-      NvidiaCardExtractionService(
-        MlKitExtractionService(
-          OcrSpaceExtractionService(
-            TesseractCardExtractionService(),
+  // Any tier failing / timing out / returning empty advances the chain.
+  return const GoogleVisionExtractionService(
+    GroqVisionExtractionService(
+      GeminiCardExtractionService(
+        NvidiaCardExtractionService(
+          MlKitExtractionService(
+            OcrSpaceExtractionService(
+              TesseractCardExtractionService(),
+            ),
           ),
         ),
       ),
