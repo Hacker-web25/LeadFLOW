@@ -14,6 +14,7 @@ class LeadPatch {
 
   bool get changed =>
       source.contact.fullName != patched.contact.fullName ||
+      source.contact.firstName != patched.contact.firstName ||
       source.contact.designation != patched.contact.designation ||
       source.contact.email != patched.contact.email ||
       source.contact.phone != patched.contact.phone ||
@@ -22,6 +23,8 @@ class LeadPatch {
       source.company?.name != patched.company?.name ||
       source.company?.website != patched.company?.website ||
       source.company?.city != patched.company?.city ||
+      source.company?.state != patched.company?.state ||
+      source.company?.postalCode != patched.company?.postalCode ||
       source.company?.country != patched.company?.country ||
       source.temperature != patched.temperature ||
       source.timeline != patched.timeline ||
@@ -38,8 +41,10 @@ class LeadPatch {
 abstract final class LeadsXlsx {
   /// One tuple per column: (field key, header shown in Excel, column width).
   /// The ID column is first + read-only in intent; import matches on it.
+  /// `First Name` sits next to `Name` so a Zoho import can map either.
   static const List<(String, String, double)> _columns = [
     ('id',                  'ID (do not edit)', 36),
+    ('first_name',          'First Name',        18),
     ('name',                'Name',              22),
     ('designation',         'Designation',       18),
     ('company',             'Company',           24),
@@ -49,6 +54,8 @@ abstract final class LeadsXlsx {
     ('email',               'Email',             26),
     ('address',             'Address',           30),
     ('city',                'City',              14),
+    ('state',               'State',             14),
+    ('postal_code',         'Postal Code',       12),
     ('country',             'Country',           14),
     ('temperature',         'Temperature',       12),
     ('timeline',            'Timeline',          14),
@@ -93,6 +100,7 @@ abstract final class LeadsXlsx {
 
   static List<String?> _rowFromLead(Lead l) => [
         l.id,
+        l.contact.firstName ?? Contact.deriveFirstName(l.contact.fullName),
         l.contact.fullName,
         l.contact.designation,
         l.company?.name,
@@ -102,6 +110,8 @@ abstract final class LeadsXlsx {
         l.contact.email,
         l.contact.address,
         l.company?.city,
+        l.company?.state,
+        l.company?.postalCode,
         l.company?.country,
         l.temperature?.label,
         l.timeline?.label,
@@ -200,6 +210,7 @@ abstract final class LeadsXlsx {
       fullName: has('name')
           ? (cell('name') ?? source.contact.fullName)
           : source.contact.fullName,
+      firstName: readStr('first_name', source.contact.firstName),
       designation: readStr('designation', source.contact.designation),
       email: readStr('email', source.contact.email),
       phone: readStr('mobile', source.contact.phone),
@@ -216,6 +227,8 @@ abstract final class LeadsXlsx {
             name: companyName,
             website: readStr('website', source.company?.website),
             city: readStr('city', source.company?.city),
+            state: readStr('state', source.company?.state),
+            postalCode: readStr('postal_code', source.company?.postalCode),
             country: readStr('country', source.company?.country),
           );
 

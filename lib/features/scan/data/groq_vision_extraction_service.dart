@@ -38,15 +38,20 @@ text next to icons, addresses in the footer, and country codes.
 
 Return ONLY a JSON object (no markdown, no commentary) with EXACTLY these keys:
 {
-  "full_name": string,        // person's name (never the company)
+  "full_name": string,        // person's full name (never the company)
+  "first_name": string,       // just the first word of the person's name
   "designation": string,      // job title / role
   "company_name": string,     // company or organisation
   "email": string,            // primary email address, lowercased
   "phone": string,            // primary mobile/phone number with country code if shown
   "alt_phone": string,        // second phone number if present, else ""
   "website": string,          // website/domain, without http://, without www.
-  "address": string,          // full street address on ONE line, comma-separated
-  "city": string,             // city only, no state, no postal code
+  "address": string,          // full STREET address only (building, road,
+                              //   locality) — do NOT include city, state,
+                              //   postal code, or country here
+  "city": string,             // city only
+  "state": string,            // state / province / region
+  "postal_code": string,      // ZIP / PIN code as printed
   "country": string           // country only
 }
 
@@ -55,10 +60,15 @@ Rules:
 - NEVER invent or guess. Only use what is visibly printed.
 - Person's name and company name are different — do not confuse them.
 - Keep phone numbers exactly as printed (preserve +, digits, spaces, hyphens).
-- Address: DO NOT emit trailing or double commas. If a component is
-  missing, just leave it out.
+- Address MUST be split into its parts. The "address" field is ONLY the
+  street/locality bit ("901, The Summit Business Bay, Off Andheri-Kurla
+  Road, Andheri East"); city/state/postal_code/country each get their own
+  fields ("Mumbai", "Maharashtra", "400093", "India"). NEVER emit trailing
+  or double commas.
 - City must be a real city name (not "Sector 80" or "Plot 42").
 - Website should not include the email domain if only an email is shown.
+- first_name is just the first token of full_name — for example
+  "Sumesh Subramaniam" → "Sumesh".
 ''';
 
   @override
@@ -148,6 +158,7 @@ Rules:
 
     return ExtractedCard(
       fullName: name,
+      firstName: FieldCleaners.text(raw('first_name')),
       designation: FieldCleaners.titleCase(raw('designation')),
       companyName: company,
       email: email,
@@ -156,6 +167,8 @@ Rules:
       website: FieldCleaners.text(raw('website'))?.toLowerCase(),
       address: FieldCleaners.address(raw('address')),
       city: FieldCleaners.titleCase(raw('city')),
+      state: FieldCleaners.titleCase(raw('state')),
+      postalCode: FieldCleaners.text(raw('postal_code')),
       country: FieldCleaners.titleCase(raw('country')),
       confidence: filled / 4.0,
     );

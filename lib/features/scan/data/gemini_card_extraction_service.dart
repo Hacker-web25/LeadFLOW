@@ -30,22 +30,29 @@ You are extracting contact details from a photograph of a business card.
 Read ALL text on the card carefully, including small print and text next to icons.
 Return ONLY a JSON object (no markdown, no commentary) with EXACTLY these keys:
 {
-  "full_name": string,        // the person's name (not the company)
+  "full_name": string,        // person's full name (never the company)
+  "first_name": string,       // just the first word of the person's name
   "designation": string,      // job title / role
-  "company_name": string,     // the company or organisation
+  "company_name": string,     // company or organisation
   "email": string,            // primary email address
   "phone": string,            // primary mobile/phone number with country code if shown
-  "alt_phone": string,        // a second phone number if present, else ""
+  "alt_phone": string,        // second phone number if present, else ""
   "website": string,          // website/domain, without http://
-  "address": string,          // full street address on one line
+  "address": string,          // STREET address only (building, road,
+                              // locality). Do NOT include city/state/
+                              // postal code/country here.
   "city": string,             // city only
+  "state": string,            // state / province / region
+  "postal_code": string,      // ZIP / PIN as printed
   "country": string           // country only
 }
 Rules:
-- If a field is not present on the card, use an empty string "".
+- If a field is not present on the card, use empty string "".
 - Keep phone numbers exactly as written (keep +, digits, spaces, hyphens).
 - Do NOT invent or guess values. Only use what is visibly on the card.
-- The person's name and the company name are different things — do not confuse them.
+- Person's name and company name are different — do not confuse them.
+- Split addresses into their parts. NEVER put the city/state/postal in
+  the "address" field, and NEVER leave dangling commas.
 ''';
 
   @override
@@ -144,6 +151,7 @@ Rules:
 
     return ExtractedCard(
       fullName: name,
+      firstName: FieldCleaners.text(raw('first_name')),
       designation: FieldCleaners.titleCase(raw('designation')),
       companyName: company,
       email: email,
@@ -152,6 +160,8 @@ Rules:
       website: FieldCleaners.text(raw('website'))?.toLowerCase(),
       address: FieldCleaners.address(raw('address')),
       city: FieldCleaners.titleCase(raw('city')),
+      state: FieldCleaners.titleCase(raw('state')),
+      postalCode: FieldCleaners.text(raw('postal_code')),
       country: FieldCleaners.titleCase(raw('country')),
       confidence: filled / 4.0,
     );

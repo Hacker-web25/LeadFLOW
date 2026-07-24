@@ -142,12 +142,16 @@ class SupabaseLeadRepository implements LeadRepository {
       if (lead.company != null) {
         companyId = await _resolveCompanyId(lead.company!);
       }
-      // 2. Contact.
+      // 2. Contact — first_name derived from full_name if the extractor
+      // didn't provide one directly (Zoho export needs it).
+      final firstName = lead.contact.firstName ??
+          Contact.deriveFirstName(lead.contact.fullName);
       await _client.from('contacts').upsert({
         'id': lead.contact.id,
         'owner_id': _uid,
         'company_id': companyId,
         'full_name': lead.contact.fullName,
+        'first_name': firstName,
         'designation': lead.contact.designation,
         'email': lead.contact.email,
         'phone': lead.contact.phone,
@@ -189,6 +193,8 @@ class SupabaseLeadRepository implements LeadRepository {
       final patch = <String, dynamic>{};
       if ((c.website ?? '').isNotEmpty) patch['website'] = c.website;
       if ((c.city ?? '').isNotEmpty) patch['city'] = c.city;
+      if ((c.state ?? '').isNotEmpty) patch['state'] = c.state;
+      if ((c.postalCode ?? '').isNotEmpty) patch['postal_code'] = c.postalCode;
       if ((c.country ?? '').isNotEmpty) patch['country'] = c.country;
       if (patch.isNotEmpty) {
         await _client.from('companies').update(patch).eq('id', id);
@@ -202,6 +208,8 @@ class SupabaseLeadRepository implements LeadRepository {
       'name': c.name,
       'website': c.website,
       'city': c.city,
+      'state': c.state,
+      'postal_code': c.postalCode,
       'country': c.country,
     });
     return c.id;

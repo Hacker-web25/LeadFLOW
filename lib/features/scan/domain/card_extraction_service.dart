@@ -8,6 +8,7 @@ import '../../../core/utils/result.dart';
 class ExtractedCard {
   const ExtractedCard({
     this.fullName,
+    this.firstName,
     this.designation,
     this.companyName,
     this.email,
@@ -16,11 +17,14 @@ class ExtractedCard {
     this.website,
     this.address,
     this.city,
+    this.state,
+    this.postalCode,
     this.country,
     this.confidence = 0,
   });
 
   final String? fullName;
+  final String? firstName;
   final String? designation;
   final String? companyName;
   final String? email;
@@ -29,6 +33,8 @@ class ExtractedCard {
   final String? website;
   final String? address;
   final String? city;
+  final String? state;
+  final String? postalCode;
   final String? country;
 
   /// 0–1 aggregate extraction confidence, surfaced on the review screen.

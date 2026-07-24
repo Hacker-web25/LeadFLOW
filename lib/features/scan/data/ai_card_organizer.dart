@@ -54,8 +54,14 @@ Rules:
 - Extract CITY and COUNTRY from the address if identifiable. City is a
   proper city name (not "Sector-80" or "Plot-42").
 
+- Split addresses: the "address" field is ONLY the street/locality
+  ("901, The Summit Business Bay, Off Andheri-Kurla Road, Andheri East");
+  city, state, postal_code and country each get their own fields. Do NOT
+  emit trailing or double commas anywhere.
+- first_name is just the first token of full_name (e.g. "Sumesh").
+
 Required JSON shape (exact keys, all strings):
-{"full_name":"","designation":"","company_name":"","email":"","phone":"","alt_phone":"","website":"","address":"","city":"","country":""}
+{"full_name":"","first_name":"","designation":"","company_name":"","email":"","phone":"","alt_phone":"","website":"","address":"","city":"","state":"","postal_code":"","country":""}
 ''';
 
   /// Returns null when no AI key is configured, the call fails, or the
@@ -182,6 +188,7 @@ Required JSON shape (exact keys, all strings):
 
     return ExtractedCard(
       fullName: name,
+      firstName: FieldCleaners.text(raw('first_name')),
       designation: FieldCleaners.titleCase(raw('designation')),
       companyName: company,
       email: email,
@@ -190,6 +197,8 @@ Required JSON shape (exact keys, all strings):
       website: FieldCleaners.text(raw('website'))?.toLowerCase(),
       address: FieldCleaners.address(raw('address')),
       city: FieldCleaners.titleCase(raw('city')),
+      state: FieldCleaners.titleCase(raw('state')),
+      postalCode: FieldCleaners.text(raw('postal_code')),
       country: FieldCleaners.titleCase(raw('country')),
       confidence: filled / 4.0,
     );

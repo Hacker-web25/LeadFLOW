@@ -205,14 +205,21 @@ class _Body extends ConsumerWidget {
             _InfoRow('Email', lead.contact.email),
             _InfoRow('Website', lead.company?.website),
             _InfoRow('Company', lead.company?.name),
-            _InfoRow(
-                'Location',
-                [lead.company?.city, lead.company?.country]
-                    .where((s) => s != null && s.trim().isNotEmpty)
-                    .cast<String>()
-                    .map((s) => s.trim())
-                    .join(', '),
-                last: true),
+          ]),
+        ),
+
+        const SizedBox(height: AppSpacing.x6),
+
+        const LfSectionHeader('Address'),
+        LfCard(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.x4, vertical: AppSpacing.x2),
+          child: Column(children: [
+            _InfoRow('Address', lead.contact.address),
+            _InfoRow('City', lead.company?.city),
+            _InfoRow('State', lead.company?.state),
+            _InfoRow('Postal code', lead.company?.postalCode),
+            _InfoRow('Country', lead.company?.country, last: true),
           ]),
         ),
 

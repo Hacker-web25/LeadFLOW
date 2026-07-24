@@ -372,6 +372,9 @@ class _BulkEditScreenState extends ConsumerState<BulkEditScreen> {
       address: s(_colAddress),
     );
     final companyName = (cells[_colCompany]?.value ?? '').toString().trim();
+    // Preserve state + postal_code from the source row — the bulk-edit
+    // grid doesn't expose columns for them (yet), and we must not blank
+    // them out on every save.
     final company = companyName.isEmpty
         ? null
         : Company(
@@ -379,6 +382,8 @@ class _BulkEditScreenState extends ConsumerState<BulkEditScreen> {
             name: companyName,
             website: s(_colWebsite),
             city: s(_colCity),
+            state: source.company?.state,
+            postalCode: source.company?.postalCode,
             country: s(_colCountry),
           );
 

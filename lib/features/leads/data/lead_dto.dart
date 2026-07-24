@@ -12,6 +12,7 @@ abstract final class LeadDto {
       contact: Contact(
         id: contact['id'] as String,
         fullName: contact['full_name'] as String,
+        firstName: contact['first_name'] as String?,
         designation: contact['designation'] as String?,
         email: contact['email'] as String?,
         phone: contact['phone'] as String?,
@@ -25,6 +26,8 @@ abstract final class LeadDto {
               name: company['name'] as String,
               website: company['website'] as String?,
               city: company['city'] as String?,
+              state: company['state'] as String?,
+              postalCode: company['postal_code'] as String?,
               country: company['country'] as String?,
             ),
       eventName: row['event_name'] as String?,

@@ -49,6 +49,7 @@ class Contact {
   const Contact({
     required this.id,
     required this.fullName,
+    this.firstName,
     this.designation,
     this.email,
     this.phone,
@@ -58,17 +59,34 @@ class Contact {
 
   final String id;
   final String fullName;
+
+  /// First name as its own column so CRMs like Zoho (which expect
+  /// `First Name` / `Last Name` split) get clean values.
+  /// Not shown in the app UI; auto-derived from [fullName] when the
+  /// extractor doesn't populate it directly.
+  final String? firstName;
+
   final String? designation;
   final String? email;
   final String? phone;
   final String? altPhone;
   final String? address;
 
-  Contact copyWith({String? fullName, String? designation, String? email,
-      String? phone, String? altPhone, String? address}) =>
+  /// Best-effort derivation of a first name when one wasn't supplied.
+  static String? deriveFirstName(String? fullName) {
+    if (fullName == null) return null;
+    final trimmed = fullName.trim();
+    if (trimmed.isEmpty) return null;
+    final parts = trimmed.split(RegExp(r'\s+'));
+    return parts.first;
+  }
+
+  Contact copyWith({String? fullName, String? firstName, String? designation,
+      String? email, String? phone, String? altPhone, String? address}) =>
       Contact(
         id: id,
         fullName: fullName ?? this.fullName,
+        firstName: firstName ?? this.firstName,
         designation: designation ?? this.designation,
         email: email ?? this.email,
         phone: phone ?? this.phone,
@@ -79,17 +97,41 @@ class Contact {
 
 @immutable
 class Company {
-  const Company({required this.id, required this.name, this.website, this.city, this.country});
+  const Company({
+    required this.id,
+    required this.name,
+    this.website,
+    this.city,
+    this.state,
+    this.postalCode,
+    this.country,
+  });
 
   final String id;
   final String name;
   final String? website;
   final String? city;
+  final String? state;
+  final String? postalCode;
   final String? country;
 
-  Company copyWith({String? name, String? website, String? city, String? country}) =>
-      Company(id: id, name: name ?? this.name, website: website ?? this.website,
-          city: city ?? this.city, country: country ?? this.country);
+  Company copyWith({
+    String? name,
+    String? website,
+    String? city,
+    String? state,
+    String? postalCode,
+    String? country,
+  }) =>
+      Company(
+        id: id,
+        name: name ?? this.name,
+        website: website ?? this.website,
+        city: city ?? this.city,
+        state: state ?? this.state,
+        postalCode: postalCode ?? this.postalCode,
+        country: country ?? this.country,
+      );
 }
 
 /// Aggregate the app works with: contact + company + qualification.

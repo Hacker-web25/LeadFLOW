@@ -153,11 +153,16 @@ class ScanFlowController extends Notifier<ScanFlowState> {
     // Auto-tag with the current exhibition folder, if any.
     final currentEvent =
         ref.read(currentExhibitionProvider).valueOrNull?.name;
+    // Prefer the AI-extracted first_name; fall back to the first token of
+    // the full name so Zoho export always has something.
+    final firstName =
+        card.firstName ?? Contact.deriveFirstName(card.fullName);
     return Lead(
       id: _uuid.v4(),
       contact: Contact(
         id: _uuid.v4(),
         fullName: card.fullName ?? '',
+        firstName: firstName,
         designation: card.designation,
         email: card.email,
         phone: card.phone,
@@ -166,8 +171,15 @@ class ScanFlowController extends Notifier<ScanFlowState> {
       ),
       company: card.companyName == null
           ? null
-          : Company(id: _uuid.v4(), name: card.companyName!,
-              website: card.website, city: card.city, country: card.country),
+          : Company(
+              id: _uuid.v4(),
+              name: card.companyName!,
+              website: card.website,
+              city: card.city,
+              state: card.state,
+              postalCode: card.postalCode,
+              country: card.country,
+            ),
       eventName: currentEvent,
       capturedAt: DateTime.now(),
       cardImagePath: imagePath,
@@ -185,10 +197,17 @@ class ScanFlowController extends Notifier<ScanFlowState> {
     final n = name.trim();
     final company = n.isEmpty
         ? null
-        : Company(id: d.company?.id ?? _uuid.v4(), name: n,
+        : Company(
+            id: d.company?.id ?? _uuid.v4(),
+            name: n,
             website: website?.trim().isEmpty ?? true ? null : website!.trim(),
             city: city?.trim().isEmpty ?? true ? null : city!.trim(),
-            country: country?.trim().isEmpty ?? true ? null : country!.trim());
+            // Preserve state + postalCode from the draft — the review
+            // screen only edits name/website/city/country.
+            state: d.company?.state,
+            postalCode: d.company?.postalCode,
+            country: country?.trim().isEmpty ?? true ? null : country!.trim(),
+          );
     state = state.copyWith(draft: d.withCompany(company));
   }
 

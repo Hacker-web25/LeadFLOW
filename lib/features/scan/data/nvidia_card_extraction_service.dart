@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../../core/config/app_config.dart';
 import '../../../core/utils/result.dart';
 import '../domain/card_extraction_service.dart';
+import 'field_cleaners.dart';
 import 'image_bytes.dart';
 
 /// AI-powered business-card extraction using NVIDIA NIM's vision-language
@@ -27,12 +28,16 @@ class NvidiaCardExtractionService implements CardExtractionService {
   static const _prompt = '''
 Read this business card image and extract the contact details.
 Return ONLY a JSON object (no markdown, no explanation) with exactly these keys:
-{"full_name":"","designation":"","company_name":"","email":"","phone":"","alt_phone":"","website":"","address":"","city":"","country":""}
+{"full_name":"","first_name":"","designation":"","company_name":"","email":"","phone":"","alt_phone":"","website":"","address":"","city":"","state":"","postal_code":"","country":""}
 Rules:
 - Use "" for anything not visible on the card.
-- The person's name and the company name are different — don't confuse them.
+- Person's name and company name are different — don't confuse them.
 - Keep phone numbers exactly as written (keep +, digits, spaces, hyphens).
 - Do not guess or invent values. Only use what's visibly printed.
+- Split addresses: "address" is ONLY the street/locality part; city,
+  state, postal_code and country each go in their own fields. Never emit
+  trailing commas.
+- first_name = the first word of full_name.
 ''';
 
   @override
@@ -116,32 +121,30 @@ Rules:
   }
 
   ExtractedCard _fromJson(Map<String, dynamic> j) {
-    String? s(String k) {
-      final v = j[k];
-      if (v == null) return null;
-      final str = v.toString().trim();
-      return str.isEmpty ? null : str;
-    }
+    String? raw(String k) => j[k]?.toString();
 
-    final name = s('full_name');
-    final company = s('company_name');
-    final email = s('email');
-    final phone = s('phone');
+    final name = FieldCleaners.text(raw('full_name'));
+    final company = FieldCleaners.text(raw('company_name'));
+    final email = FieldCleaners.text(raw('email'))?.toLowerCase();
+    final phone = FieldCleaners.text(raw('phone'));
     final filled = [name, company, email, phone]
         .where((v) => v != null && v.isNotEmpty)
         .length;
 
     return ExtractedCard(
       fullName: name,
-      designation: s('designation'),
+      firstName: FieldCleaners.text(raw('first_name')),
+      designation: FieldCleaners.titleCase(raw('designation')),
       companyName: company,
       email: email,
       phone: phone,
-      altPhone: s('alt_phone'),
-      website: s('website'),
-      address: s('address'),
-      city: s('city'),
-      country: s('country'),
+      altPhone: FieldCleaners.text(raw('alt_phone')),
+      website: FieldCleaners.text(raw('website'))?.toLowerCase(),
+      address: FieldCleaners.address(raw('address')),
+      city: FieldCleaners.titleCase(raw('city')),
+      state: FieldCleaners.titleCase(raw('state')),
+      postalCode: FieldCleaners.text(raw('postal_code')),
+      country: FieldCleaners.titleCase(raw('country')),
       confidence: filled / 4.0,
     );
   }
