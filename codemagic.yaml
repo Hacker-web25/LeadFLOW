@@ -14,7 +14,7 @@ workflows:
         OCR_SPACE_API_KEY: "K87626153588957"
         GEMINI_API_KEY: "AQ.Ab8RN6LSBZtI-LWy7dsq9xc-rgntEQjBApdb8euL0C742y9CKg"
         GROQ_API_KEY: "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"
-        GCV_API_KEY: "PASTE_YOUR_GOOGLE_CLOUD_VISION_KEY_HERE"
+        GCV_API_KEY: "AIzaSyCPT6MEFJTaubm29hAV4An0cDShYzX6oL8"
 
     scripts:
       - name: Flutter version
